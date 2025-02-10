@@ -32,9 +32,14 @@ Rect computeROI(Size2i src_sz, Ptr<StereoMatcher> matcher_instance){
     Rect r(xmin, ymin, xmax - xmin, ymax - ymin);
     return r;
 }
-
-int main(int, char**){
-
+/*  
+../bin/filteredDisparityMap ../Data/cone/left.avi ../Data/cone/right.avi
+../bin/filteredDisparityMap ../bin/testing/image_2/test.avi ../bin/testing/image_3/test.avi
+*/
+int main(int, char **argc){
+    // read image
+    std::string path_left = argc[1];
+    std::string path_right = argc[2];
     bool no_display;
     bool no_downscale;
     int max_disp, wsize; //Stereo correspondence parameters 
@@ -51,7 +56,7 @@ int main(int, char**){
 	char key = 0;
 
 	Ptr<DisparityWLSFilter> wls_filter;
-   	double matching_time, filtering_time;
+   	double matching_time, filtering_time,total_time_p;
 
 	Mat m_imageRight, m_imageLeft, img1, img2;
 	Mat imgU1, imgU2, grayDisp1, grayDisp2;
@@ -64,8 +69,8 @@ int main(int, char**){
 
 	/*Caution: the images path is absolute (hardcoded). You can change to user argv, or change these two lines below to your desired path.
 	The path here is defined for KITTI dataset images (http://www.cvlibs.net/datasets/kitti/raw_data.php).*/
-	VideoCapture videoOne("/City/City/2011_09_29_2/image_00/data/%10d.png"); //Absolute path to the KITTI left grey frames
-	VideoCapture videoTwo("/City/City/2011_09_29_2/image_01/data/%10d.png"); //Absolute path to the KITTI right grey frames
+	VideoCapture videoOne(path_left); //Absolute path to the KITTI left grey frames
+	VideoCapture videoTwo(path_right); //Absolute path to the KITTI right grey frames
 
 	int width, height;
 
@@ -81,9 +86,21 @@ int main(int, char**){
 	videoOutAllTwo = cv::VideoWriter("originalEsq.avi",CV_FOURCC('M','J','P','G'), 30, Size(width,height),true); //To save the original left images as video
 	videoOutAllFive = cv::VideoWriter("MDBONE.avi",CV_FOURCC('M','J','P','G'), 30, Size(width,height),true); //To save the DM results as BONE colormap video.
 	videoOutAllSix = cv::VideoWriter("MDHOT.avi",CV_FOURCC('M','J','P','G'), 30, Size(width,height),true); //To save the DM results as HOT colormap video.
+    filter = "wls_conf"; //Post-filter
+    algo = "sgbm"; //Defines which OpenCV algorithm was used, BM or SGBM
+    dst_path = "None";
+    dst_raw_path = "None";
+    dst_conf_path = "None";
 
+    lambda = 8000.0;
+    sigma = 3.5;
+    vis_mult = 3.0;
+    
+    wsize = 3; // 3 if SGBM
+    //wsize = 15; // if BM, 7 or 15
 while(1){
 
+    total_time_p = (double)getTickCount();
   	videoOne >> m_imageLeft;
   	videoTwo >> m_imageRight;
 	
@@ -110,20 +127,10 @@ while(1){
    		return -1;
  	}
 	
+
 	imgDisparity8U = Mat(m_imageRight.rows, m_imageRight.cols, CV_8UC1);
-    filter = "wls_conf"; //Post-filter
-    algo = "sgbm"; //Defines which OpenCV algorithm was used, BM or SGBM
-    dst_path = "None";
-    dst_raw_path = "None";
-    dst_conf_path = "None";
 
 	max_disp = 160; //160
-    lambda = 8000.0;
-    sigma = 3.5;
-    vis_mult = 3.0;
-    
-    wsize = 3; // 3 if SGBM
-    //wsize = 15; // if BM, 7 or 15
 
 	conf_map = Mat(m_imageLeft.rows,m_imageLeft.cols,CV_8U);
 	conf_map = Scalar(255);
@@ -247,10 +254,9 @@ while(1){
     }
     
     //collect and print all the stats:
-    //cout.precision(2);
-    //cout<<"Matching time:  "<<matching_time<<"s"<<endl;
-    //cout<<"Filtering time: "<<filtering_time<<"s"<<endl;
-    //cout<<endl;
+    cout.precision(2);
+    cout<<"Matching time:  "<<matching_time<<"s"<<endl;
+    // cout<<"Filtering time: "<<filtering_time<<"s"<<endl;
 
     if(dst_path!="None"){
         //Mat filtered_disp_vis;
@@ -290,8 +296,6 @@ while(1){
         
         //Displays filtered DM
         getDisparityVis(filtered_disp,filtered_disp_vis,vis_mult);
-        namedWindow("filtered disparity", WINDOW_AUTOSIZE);
-        imshow("filtered disparity", filtered_disp_vis);
         
          /* Color Maps:
           * OpenCV method to change a grayscale image to a color model.
@@ -304,15 +308,20 @@ while(1){
         //Applying color maps (different DM visualization)
 		applyColorMap(filtered_disp_vis, imgCalorBONE, COLORMAP_BONE);
 		applyColorMap(filtered_disp_vis, imgCalorHOT, COLORMAP_HOT);
+        Mat imgCalor_;
+		applyColorMap(filtered_disp_vis, imgCalor_, COLORMAP_JET);
 
-		//imshow("Left image", m_imageLeft);
-		//imshow("Right image", m_imageRight);
-		
+		imshow("Left image", m_imageLeft);
+		imshow("Right image", m_imageRight);
+        imshow("filtered disparity", imgCalor_);
 		videoOutAllTwo.write(m_imageLeft);
 		videoOutAllFive.write(imgCalorBONE);
 		videoOutAllSix.write(imgCalorHOT);
 
-		key = (char) waitKey(5);
+        total_time_p = ((double)getTickCount() - total_time_p)/getTickFrequency();
+        cout<<"total time:  "<<total_time_p<<"s"<<endl;
+        cout<<endl;
+		key = (char) waitKey(10000);
 		if(key==27){
 			break;
 		}

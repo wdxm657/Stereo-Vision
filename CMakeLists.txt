@@ -1,0 +1,2 @@
+add_executable(filteredDisparityMap filteredDisparityMap.cpp)
+target_link_libraries(filteredDisparityMap ${OpenCV_LIBS})
